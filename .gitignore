@@ -1,0 +1,9 @@
+node_modules/
+dist/
+main.js
+manifest.json
+styles.css
+.obsidian/
+.DS_Store
+.git/
+src/**/*.js
