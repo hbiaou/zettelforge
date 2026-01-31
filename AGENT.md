@@ -77,6 +77,13 @@ Create (or update) a short markdown report per work session:
   - What you changed (files)
   - How you tested (steps + results)
 
+### 2.3 Progress Tracking (Mandatory Source of Truth)
+
+- **Artifact**: `task.md` (in the `.gemini/antigravity/brain/...` directory or project root) is the **single source of truth** for project status.
+- **Rule**: You must update `task.md` **before** starting a task (mark in-progress `[/]`) and **after** finishing (mark complete `[x]`).
+- **Granularity**: Break down Milestone tasks into 1-4 hour chunks (e.g., "Implement Settings UI", "Bridge AI Service").
+- **Persistence**: Never rely on chat history for what is "done". If it's not checked in `task.md`, it is not done.
+
 ---
 
 ## 3) Repo Navigation (progressive disclosure)
