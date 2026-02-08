@@ -26,13 +26,19 @@ export class DedupService {
     /**
      * Builds/Refresh the in-memory index of titles and aliases.
      * Call this on startup and periodically/on-change if needed.
+     * RESTRICTED: Only scans notes in the configured 'Final Folder' (Zettels).
      */
     buildIndex(): void {
         this.titleCache.clear();
         this.aliasCache.clear();
 
         const files = this.app.vault.getMarkdownFiles();
+        const finalFolder = this.settings.finalFolder || 'Zettels';
+
         for (const file of files) {
+            // Only index files inside the Atomic Notes folder
+            if (!file.path.startsWith(finalFolder)) continue;
+
             this.titleCache.add(file.basename.toLowerCase());
 
             const cache = this.app.metadataCache.getFileCache(file);
@@ -45,7 +51,7 @@ export class DedupService {
                 }
             }
         }
-        console.log(`[ZettelForge] Dedup index built: ${this.titleCache.size} titles, ${this.aliasCache.size} aliases.`);
+        console.log(`[ZettelForge] Dedup index built for '${finalFolder}': ${this.titleCache.size} titles, ${this.aliasCache.size} aliases.`);
     }
 
     /**
@@ -66,12 +72,14 @@ export class DedupService {
     /**
      * Finds semantically similar notes using Jaccard Similarity on 3-grams (Shingling).
      * This is a "Soft Check" for content duplication.
+     * RESTRICTED: Only scans notes in the configured 'Final Folder' (Zettels).
      * 
      * @param content The candidate content (claim/text) to check.
      * @param threshold Similarity threshold (0.0 - 1.0). Default 0.5.
      */
     async findSimilar(content: string, threshold = 0.5): Promise<DedupResult['similarNotes']> {
-        const candidates = this.app.vault.getMarkdownFiles();
+        const allFiles = this.app.vault.getMarkdownFiles();
+        const finalFolder = this.settings.finalFolder || 'Zettels';
         const results: DedupResult['similarNotes'] = [];
 
         // Pre-tokenize source once
@@ -81,8 +89,9 @@ export class DedupService {
         // We limit the scan to recent/relevant notes or just scan all (optimization: scan all for now, it's fast < 2k notes)
         // For large vaults, this should be optimized to use an inverted index or limit by folder.
 
-        for (const file of candidates) {
-            if (file.path.startsWith(this.settings.inboxFolder)) continue;
+        for (const file of allFiles) {
+            // Only check files inside the Atomic Notes folder
+            if (!file.path.startsWith(finalFolder)) continue;
 
             // Optimization: Read cache first for tags/aliasing, but for content similarity we might need to read file 
             // OR use a cached snippet? Reading 2k files is slow.
