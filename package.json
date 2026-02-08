@@ -7,7 +7,20 @@
 		"dev": "node esbuild.config.mjs",
 		"build": "node esbuild.config.mjs production"
 	},
-	"keywords": [],
+	"keywords": [
+		"automation",
+		"obsidian",
+		"ai-assisted",
+		"obsidian-plugin",
+		"zettelkasten-methodology",
+		"atomic-notes",
+		"academic-workflows",
+		"pkm",
+		"knowledge-management",
+		"generative-ai",
+		"llm",
+		"research-assistant"
+	],
 	"author": "BIAOU Samadori S. Honoré",
 	"license": "MIT",
 	"repository": {

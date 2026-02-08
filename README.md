@@ -2,7 +2,7 @@
 
 **Your AI-powered atomic note forge for Obsidian.**
 
-ZettelForge helps you transform your literature notes into high-quality atomic notes (Zettels) using AI. It processes your source notes, generates candidate atomic notes, and provides a streamlined inbox workflow for reviewing, editing, and finalizing them.
+ZettelForge helps you transform your literature notes into high-quality atomic notes (Zettels) using AI. Designed for **academic workflows** and the **Zettelkasten methodology**, it automates the creation of **atomic notes** from your **Obsidian** vault. It processes your source notes, generates candidate atomic notes, and provides a streamlined inbox workflow for reviewing, editing, and finalizing them.
 
 ## Features
 
