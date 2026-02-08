@@ -2,6 +2,8 @@
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import ZettelForgePlugin from '../main';
 import { SYSTEM_PROMPT } from '../services/ai';
+import { TokenManager } from '../services/token-manager';
+import { PROVIDER_URLS } from '../services/models';
 import { ProviderConfigModal } from '../ui/provider-config-modal';
 
 export class ZettelForgeSettingTab extends PluginSettingTab {
@@ -37,26 +39,53 @@ export class ZettelForgeSettingTab extends PluginSettingTab {
             const info = card.createDiv();
             info.createEl('h3', { text: pName, attr: { style: 'margin: 0 0 5px 0;' } });
 
-            if (pSettings.enabled && pSettings.apiKey) {
-                info.createEl('div', { text: '✓ Configured', attr: { style: 'color: var(--text-success); font-size: 0.8em;' } });
+            // Add Model Info Link
+            const modelUrl = PROVIDER_URLS[pId];
+            if (modelUrl) {
+                info.createEl('a', {
+                    text: 'View Models & Pricing',
+                    href: modelUrl,
+                    attr: { target: '_blank', style: 'font-size: 0.8em; color: var(--text-accent); display: block; margin-bottom: 5px;' }
+                });
+            }
+
+            const hasToken = !!TokenManager.getToken(pId);
+
+            if (pSettings.enabled && hasToken) {
+                const badge = info.createEl('span', { text: 'Configured', cls: 'zettelforge-badge-success' });
+                badge.style.backgroundColor = 'var(--text-success)';
+                badge.style.color = 'var(--text-on-accent)';
+                badge.style.padding = '2px 6px';
+                badge.style.borderRadius = '4px';
+                badge.style.fontSize = '0.7em';
+                badge.style.fontWeight = 'bold';
             } else {
-                info.createEl('div', { text: 'Not configured', attr: { style: 'color: var(--text-muted); font-size: 0.8em;' } });
+                const badge = info.createEl('span', { text: 'Not Configured', cls: 'zettelforge-badge-error' });
+                badge.style.backgroundColor = 'var(--text-error)';
+                badge.style.color = 'var(--text-on-accent)';
+                badge.style.padding = '2px 6px';
+                badge.style.borderRadius = '4px';
+                badge.style.fontSize = '0.7em';
+                badge.style.fontWeight = 'bold';
             }
 
             const btnContainer = card.createDiv();
 
             new Setting(btnContainer)
                 .addButton(btn => btn
-                    .setButtonText(pSettings.apiKey ? "Reconfigure" : "Configure")
+                    .setButtonText(hasToken ? "Reconfigure" : "Configure")
                     .onClick(() => {
-                        new ProviderConfigModal(this.app, this.plugin, pId).open();
-                        // Hacky way to refresh when modal closes? 
-                        // For now user has to close/reopen settings or we rely on events.
+                        const modal = new ProviderConfigModal(this.app, this.plugin, pId);
+                        modal.onClose = () => {
+                            // Refresh logic when modal closes
+                            this.display();
+                        };
+                        modal.open();
                     }))
                 .addButton(btn => btn
                     .setButtonText("Clear")
                     .onClick(async () => {
-                        pSettings.apiKey = '';
+                        TokenManager.deleteToken(pId);
                         pSettings.enabled = false;
                         await this.plugin.saveSettings();
                         this.display(); // Force refresh

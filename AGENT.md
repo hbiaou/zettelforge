@@ -278,6 +278,30 @@ De-dup happens **early**:
     - `date_modified: YYYY-MM-DD`
     - `source_note: [[...]]`
     - `source_path: ...`
-    - `model: provider:modelId`
     - `confidence: high|medium|low`
     - `tags: [...]`
+
+## 11) Manual Deployment Workflow
+
+After **any** feature change or fix (and before notifying the user), you **MUST** follow this sequence:
+
+1.  **Commit Changes**:
+    Ensure all changes are committed to git.
+    ```bash
+    git add .
+    git commit -m "feat: description of changes"
+    ```
+
+2.  **Build Plugin**:
+    Generate the production build.
+    ```bash
+    npm run build
+    ```
+
+3.  **Remind User**:
+    You **MUST** explicitly list the files the user needs to copy to their Obsidian plugin folder (e.g., `IsVault/.obsidian/plugins/zettelforge/`).
+    
+    Files to copy:
+    - `main.js`
+    - `manifest.json`
+    - `styles.css` (if present)

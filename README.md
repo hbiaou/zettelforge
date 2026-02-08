@@ -8,6 +8,9 @@ ZettelForge helps you transform your literature notes into high-quality atomic n
 
 -   **AI-Powered Generation**: Instantly generate multiple atomic note candidates from a single source note.
 -   **Inbox Workflow**: Candidates are saved to a dedicated "Inbox" folder for review, ensuring no AI content enters your permanent vault without approval.
+-   **Secure Setup**: API keys are stored securely in `localStorage` and never saved to plaintext files or synced.
+-   **One-Note Flow**: Select a source note (literature note, daily note, etc.) and generate atomic notes directly from it.
+-   **Atomic Principles Embedded**: The AI is prompted with a strict definition of "atomic notes" (Single Responsibility Principle for ideas).
 -   **Sequential Review**: Process candidates one by one with a focused UI.
 -   **Duplicate Detection**: Early detection of potential duplicate notes to keep your vault clean.
 -   **Multi-Provider Support**: Bring your own Key (BYOK) support for:

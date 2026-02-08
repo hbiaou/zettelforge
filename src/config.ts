@@ -1,6 +1,5 @@
 export interface ProviderSettings {
     enabled: boolean;
-    apiKey: string;
     model: string;
     baseUrl?: string;
 }
@@ -21,10 +20,10 @@ export interface ZettelForgeSettings {
 export const DEFAULT_SETTINGS: ZettelForgeSettings = {
     defaultProvider: 'google',
     providers: {
-        openai: { enabled: false, apiKey: '', model: 'gpt-4o' },
-        google: { enabled: true, apiKey: '', model: 'gemini-1.5-flash' },
-        anthropic: { enabled: false, apiKey: '', model: 'claude-3-5-sonnet-20240620' },
-        openrouter: { enabled: false, apiKey: '', model: 'anthropic/claude-3.5-sonnet' }
+        openai: { enabled: false, model: 'gpt-4o' },
+        google: { enabled: true, model: 'gemini-1.5-flash' },
+        anthropic: { enabled: false, model: 'claude-3-5-sonnet-20240620' },
+        openrouter: { enabled: false, model: 'anthropic/claude-3.5-sonnet' }
     },
     inboxFolder: 'Inbox',
     finalFolder: 'Zettelkasten',

@@ -1,5 +1,8 @@
-import { App, Modal, Setting, Notice } from "obsidian";
+import { App, Modal, Setting, Notice, DropdownComponent } from "obsidian";
 import ZettelForgePlugin from "../main";
+import { TokenManager } from "../services/token-manager";
+import { DEFAULT_MODELS } from "../services/models";
+import { AIService } from "../services/ai";
 
 export class ProviderConfigModal extends Modal {
     plugin: ZettelForgePlugin;
@@ -13,7 +16,7 @@ export class ProviderConfigModal extends Modal {
         this.providerId = providerId;
 
         const currentSettings = this.plugin.settings.providers[providerId as keyof typeof this.plugin.settings.providers];
-        this.tempApiKey = currentSettings.apiKey;
+        this.tempApiKey = TokenManager.getToken(providerId) || '';
         this.tempModel = currentSettings.model;
     }
 
@@ -31,18 +34,60 @@ export class ProviderConfigModal extends Modal {
                 .setPlaceholder("sk-...")
                 .setValue(this.tempApiKey)
                 .onChange(value => this.tempApiKey = value)
-                .inputEl.type = "password" // Simple obfuscation for UI
+                .inputEl.type = "password"
             );
 
-        // Model ID Field
+        // Model Selection Dropdown
+        const modelSetting = new Setting(contentEl)
+            .setName("Model Selection")
+            .setDesc("Choose a model or enter a custom one");
+
+        const models = DEFAULT_MODELS[this.providerId] || [];
+
+        let modelDropdown: DropdownComponent;
+
+        modelSetting.addDropdown(dropdown => {
+            modelDropdown = dropdown;
+            dropdown.addOption("custom", "Custom Model");
+            models.forEach(m => {
+                dropdown.addOption(m.id, `${m.name} (${m.cost})`);
+            });
+
+            // Determine initial value
+            const isKnownModel = models.some(m => m.id === this.tempModel);
+            dropdown.setValue(isKnownModel ? this.tempModel : "custom");
+
+            dropdown.onChange(value => {
+                if (value !== "custom") {
+                    this.tempModel = value;
+                    // Update the text input below
+                    // We need a reference to the text component, but here we can just rebuild or update generic element
+                    // Let's rely on the text input existing and being updateable
+                    // But we constructed it below. So we need to do this differently.
+                    // Better approach: create text input first, then update it.
+                    const textInput = (this as any).modelTextInput; // We'll attach it
+                    if (textInput) textInput.setValue(value);
+                }
+            });
+        });
+
+        // Model ID Text Input (for custom or manual override)
         new Setting(contentEl)
             .setName("Model ID")
-            .setDesc("The model ID to use")
-            .addText(text => text
-                .setPlaceholder("gpt-4o")
-                .setValue(this.tempModel)
-                .onChange(value => this.tempModel = value)
-            );
+            .setDesc("The actual model ID sent to the API")
+            .addText(text => {
+                (this as any).modelTextInput = text;
+                text
+                    .setPlaceholder("gpt-4o")
+                    .setValue(this.tempModel)
+                    .onChange(value => {
+                        this.tempModel = value;
+                        // If typed value matches a known model, update dropdown?
+                        // Or just set to custom.
+                        const isKnown = models.some(m => m.id === value);
+                        modelDropdown.setValue(isKnown ? value : "custom");
+                    })
+            });
 
         // Buttons
         const buttonDiv = contentEl.createDiv({ cls: "modal-button-container" });
@@ -51,12 +96,17 @@ export class ProviderConfigModal extends Modal {
         const testBtn = buttonDiv.createEl("button", { text: "Test Connection" });
         testBtn.onclick = async () => {
             new Notice(`Testing ${this.providerId}...`);
+            if (!this.tempApiKey) {
+                new Notice("Please enter an API Key first.");
+                return;
+            }
             try {
-                // In real implementation we'd actually call the API
-                // await this.plugin.aiService.testConnection(this.providerId, this.tempApiKey);
-                new Notice("Test Successful (Simulated)");
-            } catch (e) {
+                const service = (this.plugin as any).aiService as AIService;
+                await service.testConnection(this.providerId, this.tempApiKey);
+                new Notice("Test Successful: Connection verified.");
+            } catch (e: any) {
                 new Notice(`Test Failed: ${e.message}`);
+                console.error(e);
             }
         };
 
@@ -64,16 +114,21 @@ export class ProviderConfigModal extends Modal {
         const saveBtn = buttonDiv.createEl("button", { text: "Save", cls: "mod-cta" });
         saveBtn.onclick = async () => {
             const settings = this.plugin.settings.providers[this.providerId as keyof typeof this.plugin.settings.providers];
-            settings.apiKey = this.tempApiKey;
+
+            // Securely save token
+            if (this.tempApiKey) {
+                TokenManager.setToken(this.providerId, this.tempApiKey);
+                settings.enabled = true;
+            } else {
+                TokenManager.deleteToken(this.providerId);
+                settings.enabled = false;
+            }
+
             settings.model = this.tempModel;
-            settings.enabled = !!this.tempApiKey;
 
             await this.plugin.saveSettings();
             new Notice(`${this.getProviderName(this.providerId)} saved.`);
             this.close();
-            // Trigger refresh of settings tab if possible? 
-            // We can't easily refresh the parent tab from here without a callback.
-            // Ideally we pass a callback.
         };
 
         // Cancel Button

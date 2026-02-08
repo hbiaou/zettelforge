@@ -1,6 +1,8 @@
 import { requestUrl, RequestUrlParam, App, Notice } from "obsidian";
 import { ZettelForgeSettings } from "../config";
 import { ContextItem } from "./context";
+import { TokenManager } from "./token-manager";
+import { DEFAULT_MODELS } from "./models";
 
 export interface AtomicCandidate {
     title: string;
@@ -15,7 +17,8 @@ export interface AtomicCandidate {
 export interface AIProvider {
     id: string;
     name: string;
-    generate(content: string, settings: any, context?: ContextItem[], systemPrompt?: string): Promise<AtomicCandidate[]>;
+    generate(content: string, settings: any, apiKey: string, context?: ContextItem[], systemPrompt?: string): Promise<AtomicCandidate[]>;
+    test(apiKey: string): Promise<boolean>;
 }
 
 export class AIService {
@@ -57,8 +60,13 @@ export class AIService {
                 throw new Error(`Unknown provider: ${providerId}`);
         }
 
+        const apiKey = TokenManager.getToken(providerId);
+        if (!apiKey) {
+            throw new Error(`API key not found for provider: ${providerId}`);
+        }
+
         try {
-            return await provider.generate(content, providerSettings, context, promptToUse);
+            return await provider.generate(content, providerSettings, apiKey, context, promptToUse);
         } catch (error: any) {
             console.error("[ZettelForge] AI Generation Error:", error);
             // Try to extract more details from the error if possible
@@ -69,40 +77,16 @@ export class AIService {
     }
 
     async testConnection(providerId: string, apiKey: string): Promise<boolean> {
-        // Simple test: try to generate a tiny response
-        try {
-            // We create a temporary settings object just for the test
-            const testSettings = { ...this.settings.providers[providerId as keyof typeof this.settings.providers] };
-            testSettings.apiKey = apiKey;
-
-            // We need to instantiate the provider
-            let provider: AIProvider;
-            switch (providerId) {
-                case 'openai': provider = new OpenAICompatibleProvider('openai', 'OpenAI', 'https://api.openai.com/v1/chat/completions'); break;
-                case 'openrouter': provider = new OpenAICompatibleProvider('openrouter', 'OpenRouter', 'https://openrouter.ai/api/v1/chat/completions'); break;
-                case 'anthropic': provider = new AnthropicProvider(); break;
-                case 'google': provider = new GoogleProvider(); break;
-                default: throw new Error(`Unknown provider: ${providerId}`);
-            }
-
-            // We send a dummy request. This might cost a tiny bit of tokens but ensures validity.
-            // We can't easily valid API key otherwise without specific endpoints per provider.
-            // For now, let's just assume if we can instantiate it's okay? No, we need a network call.
-            // Let's send a "Hello" prompt.
-            // Ideally providers would have a listModels endpoint which is cheaper/free.
-
-            // For simplicity in M1, we'll try to generate "Hello". 
-            // Ideally we should use list models if available.
-
-            // Let's just return true for now to scaffold the UI, then implement real test.
-            // User requested "Test" button. 
-            // Let's try to fetch models list for OpenAI/OpenRouter, and generate one token for others.
-
-            return true;
-        } catch (e) {
-            console.error(e);
-            throw e;
+        let provider: AIProvider;
+        switch (providerId) {
+            case 'openai': provider = new OpenAICompatibleProvider('openai', 'OpenAI', 'https://api.openai.com/v1/chat/completions'); break;
+            case 'openrouter': provider = new OpenAICompatibleProvider('openrouter', 'OpenRouter', 'https://openrouter.ai/api/v1/chat/completions'); break;
+            case 'anthropic': provider = new AnthropicProvider(); break;
+            case 'google': provider = new GoogleProvider(); break;
+            default: throw new Error(`Unknown provider: ${providerId}`);
         }
+
+        return await provider.test(apiKey);
     }
 }
 
@@ -253,8 +237,8 @@ class OpenAICompatibleProvider implements AIProvider {
         this.defaultBaseUrl = defaultBaseUrl;
     }
 
-    async generate(content: string, settings: any, context?: ContextItem[], systemPrompt?: string): Promise<AtomicCandidate[]> {
-        if (!settings.apiKey) throw new Error(`${this.name} API key is missing.`);
+    async generate(content: string, settings: any, apiKey: string, context?: ContextItem[], systemPrompt?: string): Promise<AtomicCandidate[]> {
+        if (!apiKey) throw new Error(`${this.name} API key is missing.`);
 
         // Use custom URL if provided, else default. Ensure it allows overriding for local LLMs too.
         let url = settings.baseUrl;
@@ -278,7 +262,7 @@ class OpenAICompatibleProvider implements AIProvider {
         // OpenRouter requires specific headers
         const headers: Record<string, string> = {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${settings.apiKey}`
+            "Authorization": `Bearer ${apiKey}`
         };
 
         if (this.id === 'openrouter') {
@@ -309,6 +293,33 @@ class OpenAICompatibleProvider implements AIProvider {
         }
     }
 
+    async test(apiKey: string): Promise<boolean> {
+        // Try to list models (usually free/cheap) or generate 1 token
+        // OpenAI model list: GET https://api.openai.com/v1/models
+        // OpenRouter model list: GET https://openrouter.ai/api/v1/models
+
+        let url = this.id === 'openai' ? 'https://api.openai.com/v1/models' : 'https://openrouter.ai/api/v1/models';
+
+        const params: RequestUrlParam = {
+            url: url,
+            method: "GET",
+            headers: {
+                "Authorization": `Bearer ${apiKey}`
+            }
+        };
+
+        try {
+            const response = await requestUrl(params);
+            if (response.status >= 300) throw new Error(`Status ${response.status}`);
+            return true;
+        } catch (e: any) {
+            // Fallback for custom base URLs or strict permissions: try a minimal generation
+            // This part is tricky if list models is blocked. 
+            // For now, if list models fails, we assume auth failed.
+            throw new Error(`Connection failed: ${e.message || 'Unknown error'}`);
+        }
+    }
+
     parseResponse(text: string): AtomicCandidate[] {
         // Clean markdown code blocks if present (common with OpenRouter models)
         const cleanText = text.replace(/```json\n?|\n?```/g, '');
@@ -330,8 +341,8 @@ class AnthropicProvider implements AIProvider {
     id = 'anthropic';
     name = 'Anthropic';
 
-    async generate(content: string, settings: any, context?: ContextItem[], systemPrompt?: string): Promise<AtomicCandidate[]> {
-        if (!settings.apiKey) throw new Error("Anthropic API key is missing.");
+    async generate(content: string, settings: any, apiKey: string, context?: ContextItem[], systemPrompt?: string): Promise<AtomicCandidate[]> {
+        if (!apiKey) throw new Error("Anthropic API key is missing.");
 
         const url = settings.baseUrl || 'https://api.anthropic.com/v1/messages';
 
@@ -349,7 +360,7 @@ class AnthropicProvider implements AIProvider {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
-                "x-api-key": settings.apiKey,
+                "x-api-key": apiKey,
                 "anthropic-version": "2023-06-01"
             },
             body: JSON.stringify(payload)
@@ -365,6 +376,34 @@ class AnthropicProvider implements AIProvider {
         const data = response.json;
         const text = data.content[0].text;
         return this.parseResponse(text);
+    }
+
+    async test(apiKey: string): Promise<boolean> {
+        // Anthropic doesn't have a simple list models endpoint that uses the same key structure in all docs?
+        // Actually they do confirm models via generation or just a cheap call.
+        // Let's try to generate 1 token "Hello"
+        const params: RequestUrlParam = {
+            url: 'https://api.anthropic.com/v1/messages',
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                "x-api-key": apiKey,
+                "anthropic-version": "2023-06-01"
+            },
+            body: JSON.stringify({
+                model: 'claude-3-haiku-20240307', // Use a cheap model for testing
+                max_tokens: 1,
+                messages: [{ role: "user", content: "Hi" }]
+            })
+        };
+
+        try {
+            const response = await requestUrl(params);
+            if (response.status !== 200) throw new Error(`Status ${response.status}`);
+            return true;
+        } catch (e: any) {
+            throw new Error(`Connection failed: ${e.message}`);
+        }
     }
 
     parseResponse(text: string): AtomicCandidate[] {
@@ -386,11 +425,11 @@ class GoogleProvider implements AIProvider {
     id = 'google';
     name = 'Google Gemini';
 
-    async generate(content: string, settings: any, context?: ContextItem[], systemPrompt?: string): Promise<AtomicCandidate[]> {
-        if (!settings.apiKey) throw new Error("Google API key is missing.");
+    async generate(content: string, settings: any, apiKey: string, context?: ContextItem[], systemPrompt?: string): Promise<AtomicCandidate[]> {
+        if (!apiKey) throw new Error("Google API key is missing.");
 
         const model = settings.model || 'gemini-1.5-pro';
-        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${settings.apiKey}`;
+        const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
         const payload = {
             contents: [{
@@ -431,6 +470,22 @@ class GoogleProvider implements AIProvider {
             const sanitizedMsg = msg.replace(/key=[^&]*/, 'key=***');
             console.error("Google API Error", sanitizedMsg);
             throw new Error(`Google Generation Failed. Check API Key/Model Name. Details: ${sanitizedMsg}`);
+        }
+    }
+
+    async test(apiKey: string): Promise<boolean> {
+        // Google: list models
+        const url = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
+        const params: RequestUrlParam = {
+            url: url,
+            method: "GET"
+        };
+        try {
+            const response = await requestUrl(params);
+            if (response.status !== 200) throw new Error(`Status ${response.status}`);
+            return true;
+        } catch (e: any) {
+            throw new Error(`Connection failed: ${e.message}`);
         }
     }
 }
