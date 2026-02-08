@@ -10,6 +10,14 @@
 	"keywords": [],
 	"author": "BIAOU Samadori S. Honoré",
 	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/hbiaou/zettelforge.git"
+	},
+	"bugs": {
+		"url": "https://github.com/hbiaou/zettelforge/issues"
+	},
+	"homepage": "https://github.com/hbiaou/zettelforge#readme",
 	"devDependencies": {
 		"@types/node": "^16.11.6",
 		"@typescript-eslint/eslint-plugin": "5.29.0",

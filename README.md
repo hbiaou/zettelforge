@@ -21,7 +21,7 @@ ZettelForge helps you transform your literature notes into high-quality atomic n
 
 ### Manual Installation
 
-1.  Download the latest release from the [Releases](https://github.com/yourname/zettelforge/releases) page.
+1.  Download the latest release from the [Releases](https://github.com/hbiaou/zettelforge/releases) page.
 2.  Extract the `main.js`, `manifest.json`, and `styles.css` files into your vault's plugin folder: `<VaultFolder>/.obsidian/plugins/zettelforge/`.
 3.  Reload Obsidian.
 4.  Enable "ZettelForge" in Community Plugins settings.
@@ -30,7 +30,7 @@ ZettelForge helps you transform your literature notes into high-quality atomic n
 
 1.  Install the **BRAT** community plugin in Obsidian.
 2.  Open the command palette and run `BRAT: Add a beta plugin for testing`.
-3.  Enter the GitHub repository URL: `https://github.com/yourname/zettelforge`.
+3.  Enter the GitHub repository URL: `https://github.com/hbiaou/zettelforge`.
 4.  Enable the plugin in Community Plugins settings.
 
 ## Setup
