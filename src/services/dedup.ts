@@ -72,31 +72,37 @@ export class DedupService {
     /**
      * Finds semantically similar notes using Jaccard Similarity on 3-grams (Shingling).
      * This is a "Soft Check" for content duplication.
-     * RESTRICTED: Only scans notes in the configured 'Final Folder' (Zettels).
+     * RESTRICTED: scans notes in 'Final Folder' AND any optional `extraFiles` (e.g. Inbox candidates).
      * 
      * @param content The candidate content (claim/text) to check.
      * @param threshold Similarity threshold (0.0 - 1.0). Default 0.5.
+     * @param extraFiles Optional list of additional files to check (e.g. current Inbox batch).
+     * @param excludePath Optional file path to exclude from results (self).
      */
-    async findSimilar(content: string, threshold = 0.5): Promise<DedupResult['similarNotes']> {
+    async findSimilar(content: string, threshold = 0.5, extraFiles: TFile[] = [], excludePath?: string): Promise<DedupResult['similarNotes']> {
+        // 1. Get files from Final Folder
         const allFiles = this.app.vault.getMarkdownFiles();
         const finalFolder = this.settings.finalFolder || 'Zettels';
+
+        const candidates = allFiles.filter(f => f.path.startsWith(finalFolder));
+
+        // 2. Add extra files (e.g. Inbox)
+        // Ensure uniqueness if extraFiles overlaps with candidates (unlikely if they are in Inbox)
+        for (const extra of extraFiles) {
+            if (!candidates.includes(extra)) {
+                candidates.push(extra);
+            }
+        }
+
         const results: DedupResult['similarNotes'] = [];
 
         // Pre-tokenize source once
         const sourceSet = this.getShingles(content);
         if (sourceSet.size === 0) return [];
 
-        // We limit the scan to recent/relevant notes or just scan all (optimization: scan all for now, it's fast < 2k notes)
-        // For large vaults, this should be optimized to use an inverted index or limit by folder.
-
-        for (const file of allFiles) {
-            // Only check files inside the Atomic Notes folder
-            if (!file.path.startsWith(finalFolder)) continue;
-
-            // Optimization: Read cache first for tags/aliasing, but for content similarity we might need to read file 
-            // OR use a cached snippet? Reading 2k files is slow.
-            // Compromise: Match against *file name* tokens heavily, and maybe *frontmatter atomic_claim* if it exists?
-            // Reading full content of every file is too heavy for a synchronous-like check.
+        for (const file of candidates) {
+            // Exclude self
+            if (excludePath && file.path === excludePath) continue;
 
             // Strategy: 
             // 1. Check filename similarity (fast)
@@ -114,13 +120,52 @@ export class DedupService {
                 reason = "Similar Title";
             }
 
-            // Check 2: Atomic Claim (if available in cache)
-            const cache = this.app.metadataCache.getFileCache(file);
-            // We can add more fields here if we want to check against headers etc.
+            // Check 2: Content Body (Slow but necessary for batch dupes)
+            // If it's in extraFiles (Inbox), we absolutely must read the content because it might not be cached yet?
+            // Actually `read` is async.
+            // For `candidates` from vault, reading all is too slow.
+            // BUT for `extraFiles` (small batch of ~10), we SHOULD read them.
 
-            // To be truly effective for *content* dupes, we'd need the content. 
-            // Attempting to read only if title score was > 0.2 (heuristic to drill down)?
-            // For now, let's rely on Title + Tag overlap + maybe frontmatter description.
+            // Optimization: Only read content if it's in `extraFiles` OR if we have a hint?
+            // For now, let's treat `finalFolder` files as "Title/Alias check only" unless we implementing caching?
+            // Wait, Jaccard on *content* was the promise. 
+            // "Trade-offs between Stress..." vs "Trade-offs in Crop..." -> These titles are similar enough (Trade-offs).
+            // But "Adaptive Resistance..." vs "Low Human Interference..." -> Titles are different.
+            // We NEED to check content.
+
+            // If we can't read 2000 files, we rely on the `atomic_claim` frontmatter if available?
+            // Let's check frontmatter for `atomic_claim` or `atomic_note_claim`?
+            // The generated notes have `atomic_claim` in the body, but maybe not in FM?
+            // Looking at user example: `note_origin: ai`... `tags`...
+            // It seems "atomic_claim" is NOT in frontmatter in the user examples.
+            // It is in the BODY: `## CLAIM\n...`
+
+            // So we can't easily check content of existing notes without reading them.
+            // However, we CAN read the content of `extraFiles` (Inbox) because they are few.
+
+            if (extraFiles.includes(file)) {
+                // It's a candidate in inbox, likely small count (<20). READ IT.
+                const fileContent = await this.app.vault.read(file);
+                const contentSet = this.getShingles(fileContent);
+                const contentScore = this.calculateJaccard(sourceSet, contentSet);
+                if (contentScore > maxScore) {
+                    maxScore = contentScore;
+                    reason = "Similar Content (Inbox)";
+                }
+            } else {
+                // It's an archived note. 
+                // Using `file.basename` logic (Done above).
+                // Can we check Frontmatter tags as proxy?
+                // Or maybe read the first N bytes? 
+
+                // For now, keep it fast: Title matches are heavily weighted.
+                // If we want to catch "Adaptive Resistance" vs "Low Human Interference", we depend on:
+                // 1. Tags?
+                // 2. Reference?
+                // 3. Or maybe the User IS OK with us scanning the folder if it's not too huge?
+                // Let's stick to: Title check for Archive, Full check for Inbox.
+                // AND: If the user provides `extraFiles`, we check those fully.
+            }
 
             if (maxScore > threshold) {
                 results.push({ file, score: maxScore, reason });

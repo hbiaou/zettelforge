@@ -47,9 +47,9 @@ export class ReviewModal extends Modal {
         const dupTitle = this.dedupService.isTitleDuplicate(file.basename);
 
         // 2. Soft Check (Content Similarity)
-        // Extract atomic claim or body to check. 
-        // For simple candidates, content is usually small enough.
-        const dupContent = await this.dedupService.findSimilar(content);
+        // Check against Atomic Notes Folder AND other candidates in Inbox (this.files)
+        // Pass 'this.files' as extraFiles, and exclude current 'file.path' to avoid self-match.
+        const dupContent = await this.dedupService.findSimilar(content, 0.5, this.files, file.path);
 
 
         // Header
