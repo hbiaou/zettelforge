@@ -193,6 +193,7 @@ EPISTEMIC DISCIPLINE
 - Do NOT invent support
 - If no explicit support exists in the source note, mark it as "N/A"
 - Preserve uncertainty when present
+- Always prioritize generating atomic notes where explicit support exist (e.g., if generating 6 atomic notes, make sure ~2/3 of them have explicit support)
 
 ────────────────────────────────────────
 OUTPUT FORMAT (STRICT JSON)
@@ -391,7 +392,7 @@ class AnthropicProvider implements AIProvider {
                 "anthropic-version": "2023-06-01"
             },
             body: JSON.stringify({
-                model: 'claude-3-haiku-20240307', // Use a cheap model for testing
+                model: 'claude-3-5-sonnet-20240620',
                 max_tokens: 1,
                 messages: [{ role: "user", content: "Hi" }]
             })
@@ -402,6 +403,7 @@ class AnthropicProvider implements AIProvider {
             if (response.status !== 200) throw new Error(`Status ${response.status}`);
             return true;
         } catch (e: any) {
+            console.error("Anthropic Test Failed", e);
             throw new Error(`Connection failed: ${e.message}`);
         }
     }

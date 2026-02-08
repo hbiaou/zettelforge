@@ -99,8 +99,8 @@ export class ZettelForgeSettingTab extends PluginSettingTab {
 
         // Default Model Dropdown
         new Setting(containerEl)
-            .setName('Default Model')
-            .setDesc('Select the default AI model to use for enrichment')
+            .setName('Default Provider')
+            .setDesc('Select the default AI model Provider to use for enrichment')
             .addDropdown(dropdown => {
                 dropdown.addOption('openai', 'OpenAI');
                 dropdown.addOption('google', 'Google Gemini');
