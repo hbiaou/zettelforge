@@ -1,9 +1,6 @@
-
-export interface ZettelForgeSettings {
-    // AI Provider Details
-    aiProvider: string;
+export interface ProviderSettings {
+    enabled: boolean;
     apiKey: string;
-    modelId: string;
     model: string;
     baseUrl?: string;
 }
@@ -18,6 +15,7 @@ export interface ZettelForgeSettings {
     };
     inboxFolder: string;
     finalFolder: string;
+    systemPrompt: string;
 }
 
 export const DEFAULT_SETTINGS: ZettelForgeSettings = {
@@ -29,5 +27,6 @@ export const DEFAULT_SETTINGS: ZettelForgeSettings = {
         openrouter: { enabled: false, apiKey: '', model: 'anthropic/claude-3.5-sonnet' }
     },
     inboxFolder: 'Inbox',
-    finalFolder: 'Zettelkasten'
+    finalFolder: 'Zettelkasten',
+    systemPrompt: 'DEFAULT'
 };

@@ -1,4 +1,4 @@
-import { App, Modal, TFile, Setting, ButtonComponent, Notice } from "obsidian";
+import { App, Modal, TFile, Setting, ButtonComponent, Notice, TextComponent, TextAreaComponent } from "obsidian";
 import { NoteOps } from "../notes/note-ops";
 import { getFrontmatter, updateFrontmatter } from "../utils/frontmatter";
 
@@ -52,12 +52,28 @@ export class ReviewModal extends Modal {
         // For M1, we assume they review the text. If they want to edit, maybe we add an "Open in Editor" button?
         // SPEC says: "Displays ONE candidate note at a time: Title, Claim, Support... (editable)"
         // Let's us a simple TextArea for the whole body for M1 to allow quick fixes.
-        const textArea = contentEl.createEl("textarea", {
-            text: content,
-            cls: "zettelforge-review-editor"
-        });
-        textArea.style.width = "100%";
-        textArea.style.height = "300px";
+        // Title Input
+        const titleContainer = contentEl.createDiv({ cls: 'zettelforge-review-title' });
+        titleContainer.style.marginBottom = '10px';
+
+        let newTitle = file.basename;
+        const titleInput = new TextComponent(titleContainer)
+            .setValue(newTitle)
+            .setPlaceholder('Note Title')
+            .onChange(val => newTitle = val);
+        titleInput.inputEl.style.width = '100%';
+        titleInput.inputEl.style.fontSize = '1.2em';
+        titleInput.inputEl.style.fontWeight = 'bold';
+
+        // Body Input
+        let newBody = content;
+        const bodyInput = new TextAreaComponent(contentEl)
+            .setValue(content)
+            .onChange(val => newBody = val);
+
+        bodyInput.inputEl.style.width = '100%';
+        bodyInput.inputEl.style.height = '300px';
+        bodyInput.inputEl.style.fontFamily = 'monospace';
 
         // Actions Bar
         const actionsDiv = contentEl.createDiv({ cls: "zettelforge-actions" });
@@ -92,12 +108,25 @@ export class ReviewModal extends Modal {
             .setButtonText("Finalize")
             .setCta()
             .onClick(async () => {
-                // Save edits first if any
-                if (textArea.value !== content) {
-                    await this.app.vault.modify(file, textArea.value);
+                // 1. Update Body if changed
+                if (newBody !== content) {
+                    await this.app.vault.modify(file, newBody);
                 }
 
+                // 2. Rename File if Title changed
+                if (newTitle !== file.basename) {
+                    const newPath = file.parent ? `${file.parent.path}/${newTitle}.md` : `${newTitle}.md`;
+                    try {
+                        await this.app.fileManager.renameFile(file, newPath);
+                    } catch (err) {
+                        new Notice(`Failed to rename to "${newTitle}". Only content saved.`);
+                        console.error(err);
+                    }
+                }
+
+                // 3. Finalize (Move to permanent folder)
                 await this.noteOps.finalizeNote(file);
+
                 new Notice(`Finalized ${file.basename}`);
                 this.files.splice(this.currentIndex, 1);
                 this.render();

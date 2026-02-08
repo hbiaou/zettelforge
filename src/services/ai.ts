@@ -1,5 +1,6 @@
 import { requestUrl, RequestUrlParam, App, Notice } from "obsidian";
 import { ZettelForgeSettings } from "../config";
+import { ContextItem } from "./context";
 
 export interface AtomicCandidate {
     title: string;
@@ -14,7 +15,7 @@ export interface AtomicCandidate {
 export interface AIProvider {
     id: string;
     name: string;
-    generate(content: string, settings: any): Promise<AtomicCandidate[]>;
+    generate(content: string, settings: any, context?: ContextItem[], systemPrompt?: string): Promise<AtomicCandidate[]>;
 }
 
 export class AIService {
@@ -24,9 +25,14 @@ export class AIService {
         this.settings = settings;
     }
 
-    async generateCandidates(content: string, overrideProviderId?: string): Promise<AtomicCandidate[]> {
+    async generateCandidates(content: string, overrideProviderId?: string, context: ContextItem[] = []): Promise<AtomicCandidate[]> {
         const providerId = overrideProviderId || this.settings.defaultProvider;
         const providerSettings = this.settings.providers[providerId as keyof typeof this.settings.providers];
+
+        let promptToUse = this.settings.systemPrompt;
+        if (!promptToUse || promptToUse === 'DEFAULT') {
+            promptToUse = SYSTEM_PROMPT;
+        }
 
         if (!providerSettings) {
             throw new Error(`Provider settings not found for: ${providerId}`);
@@ -52,8 +58,8 @@ export class AIService {
         }
 
         try {
-            return await provider.generate(content, providerSettings);
-        } catch (error) {
+            return await provider.generate(content, providerSettings, context, promptToUse);
+        } catch (error: any) {
             console.error("[ZettelForge] AI Generation Error:", error);
             // Try to extract more details from the error if possible
             const msg = error.message || error.toString();
@@ -103,7 +109,8 @@ export class AIService {
 
 // --- Providers ---
 
-const SYSTEM_PROMPT = `
+// Export it so we can reference it
+export const SYSTEM_PROMPT = `
 You are an Atomic Knowledge Extraction Agent.
 
 Your task is to extract HIGH-UTILITY ATOMIC NOTES from a single source note.
@@ -246,7 +253,7 @@ class OpenAICompatibleProvider implements AIProvider {
         this.defaultBaseUrl = defaultBaseUrl;
     }
 
-    async generate(content: string, settings: any): Promise<AtomicCandidate[]> {
+    async generate(content: string, settings: any, context?: ContextItem[], systemPrompt?: string): Promise<AtomicCandidate[]> {
         if (!settings.apiKey) throw new Error(`${this.name} API key is missing.`);
 
         // Use custom URL if provided, else default. Ensure it allows overriding for local LLMs too.
@@ -258,7 +265,7 @@ class OpenAICompatibleProvider implements AIProvider {
         const payload = {
             model: settings.model || (this.id === 'openai' ? 'gpt-4o' : 'google/gemini-pro-1.5'),
             messages: [
-                { role: "system", content: SYSTEM_PROMPT },
+                { role: "system", content: (systemPrompt || SYSTEM_PROMPT) + buildContextString(context) },
                 { role: "user", content: `Source Text:\n\n${content}` }
             ],
             temperature: 0.7,
@@ -323,7 +330,7 @@ class AnthropicProvider implements AIProvider {
     id = 'anthropic';
     name = 'Anthropic';
 
-    async generate(content: string, settings: any): Promise<AtomicCandidate[]> {
+    async generate(content: string, settings: any, context?: ContextItem[], systemPrompt?: string): Promise<AtomicCandidate[]> {
         if (!settings.apiKey) throw new Error("Anthropic API key is missing.");
 
         const url = settings.baseUrl || 'https://api.anthropic.com/v1/messages';
@@ -331,7 +338,7 @@ class AnthropicProvider implements AIProvider {
         const payload = {
             model: settings.model || 'claude-3-5-sonnet-20240620',
             max_tokens: 4096,
-            system: SYSTEM_PROMPT, // Top-level system parameter for Messages API
+            system: (systemPrompt || SYSTEM_PROMPT) + buildContextString(context), // Top-level system parameter for Messages API
             messages: [
                 { role: "user", content: `Source Text:\n\n${content}` }
             ]
@@ -379,7 +386,7 @@ class GoogleProvider implements AIProvider {
     id = 'google';
     name = 'Google Gemini';
 
-    async generate(content: string, settings: any): Promise<AtomicCandidate[]> {
+    async generate(content: string, settings: any, context?: ContextItem[], systemPrompt?: string): Promise<AtomicCandidate[]> {
         if (!settings.apiKey) throw new Error("Google API key is missing.");
 
         const model = settings.model || 'gemini-1.5-pro';
@@ -387,7 +394,7 @@ class GoogleProvider implements AIProvider {
 
         const payload = {
             contents: [{
-                parts: [{ text: `${SYSTEM_PROMPT}\n\nSource Text:\n\n${content}` }]
+                parts: [{ text: `${(systemPrompt || SYSTEM_PROMPT)}${buildContextString(context)}\n\nSource Text:\n\n${content}` }]
             }],
             generationConfig: {
                 response_mime_type: "application/json"
@@ -417,10 +424,32 @@ class GoogleProvider implements AIProvider {
             } catch (e) {
                 throw new Error("AI response was not valid JSON");
             }
-        } catch (e) {
+        } catch (e: any) {
             // Often the error body has details
-            console.error("Google API Error", e);
-            throw new Error(`Google Generation Failed. Check API Key/Model Name. Details: ${e.message}`);
+            // Sanitize error message to remove API key if present in URL
+            const msg = e.message || String(e);
+            const sanitizedMsg = msg.replace(/key=[^&]*/, 'key=***');
+            console.error("Google API Error", sanitizedMsg);
+            throw new Error(`Google Generation Failed. Check API Key/Model Name. Details: ${sanitizedMsg}`);
         }
     }
+}
+
+function buildContextString(context?: ContextItem[]): string {
+    if (!context || context.length === 0) return "";
+
+    const list = context.map(c => `- [[${c.title}]]`).join("\n");
+    return `
+
+────────────────────────────────────────
+EXISTING KNOWLEDGE GRAPH
+────────────────────────────────────────
+The following concepts already exist in the user's vault.
+
+INSTRUCTIONS:
+1. DEDUPLICATION: Do NOT create a new note if the core Question/Evidence/Claim/Principle is already covered by an existing note in the list below.
+2. LINKING: Where appropriate, LINK to these existing notes using [[Title]] syntax instead of creating new disconnected nodes.
+
+${list}
+`;
 }

@@ -7,3 +7,8 @@ styles.css
 .DS_Store
 .git/
 src/**/*.js
+
+# Development documentation
+AGENT.md
+SPEC.md
+reports/

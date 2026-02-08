@@ -1,6 +1,7 @@
 
 import { App, PluginSettingTab, Setting, Notice } from 'obsidian';
 import ZettelForgePlugin from '../main';
+import { SYSTEM_PROMPT } from '../services/ai';
 import { ProviderConfigModal } from '../ui/provider-config-modal';
 
 export class ZettelForgeSettingTab extends PluginSettingTab {
@@ -109,6 +110,43 @@ export class ZettelForgeSettingTab extends PluginSettingTab {
                     this.plugin.settings.finalFolder = value;
                     await this.plugin.saveSettings();
                 }));
+
+        containerEl.createEl('h2', { text: 'AI Instructions' });
+
+        const promptSetting = new Setting(containerEl)
+            .setName('System Prompt')
+            .setDesc('Customize the instructions given to the AI.')
+            .addButton(btn => btn
+                .setButtonText('Reset to Default')
+                .setWarning()
+                .setTooltip('Restore the default highly-optimized prompt')
+                .onClick(async () => {
+                    if (!confirm('Are you sure you want to reset the system prompt to default?')) return;
+                    this.plugin.settings.systemPrompt = 'DEFAULT';
+                    await this.plugin.saveSettings();
+                    // Update the text area immediately
+                    const textArea = promptSetting.controlEl.querySelector('textarea');
+                    if (textArea) textArea.value = SYSTEM_PROMPT;
+                    new Notice('System Prompt reset to default.');
+                }))
+            .addTextArea(text => text
+                .setPlaceholder('Enter custom system prompt...')
+                .setValue(this.plugin.settings.systemPrompt === 'DEFAULT' ? SYSTEM_PROMPT : this.plugin.settings.systemPrompt)
+                .onChange(async (value) => {
+                    this.plugin.settings.systemPrompt = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // Style adjustments for vertical layout
+        promptSetting.settingEl.style.display = 'block'; // Stack name/desc on top of controls if needed, or stick to default
+        // Actually, for large text areas, it's often better to just let it flow or force block
+
+        const infoEl = promptSetting.infoEl;
+        const controlEl = promptSetting.controlEl;
+
+        // Force the text area to break to a new line if possible, or just style it
+        promptSetting.controlEl.querySelector('textarea')?.setAttr('rows', 15);
+        promptSetting.controlEl.querySelector('textarea')?.setAttr('style', 'width: 100%; min-height: 250px; margin-top: 10px;');
     }
 
     getProviderName(id: string): string {

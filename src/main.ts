@@ -3,18 +3,21 @@ import { ZettelForgeSettings, DEFAULT_SETTINGS } from "./config";
 import { ZettelForgeSettingTab } from "./settings/tab";
 import { NoteOps } from "./notes/note-ops";
 import { AIService } from "./services/ai";
+import { ContextService } from "./services/context";
 import { ReviewModal } from "./ui/review-modal";
 
 export default class ZettelForgePlugin extends Plugin {
     settings: ZettelForgeSettings;
     noteOps: NoteOps;
     aiService: AIService;
+    contextService: ContextService;
 
     async onload() {
         await this.loadSettings();
 
         // Initialize Services
         this.noteOps = new NoteOps(this.app, this.settings);
+        this.contextService = new ContextService(this.app);
         this.aiService = new AIService(this.settings);
 
         this.addSettingTab(new ZettelForgeSettingTab(this.app, this));
@@ -34,7 +37,14 @@ export default class ZettelForgePlugin extends Plugin {
                 new Notice(`Generating candidates from "${activeFile.basename}"...`);
 
                 try {
-                    const candidates = await this.aiService.generateCandidates(content);
+                    // Context Retrieval (RAG)
+                    new Notice("Scanning vault for relevant context...");
+                    const context = await this.contextService.findRelevantNotes(content);
+                    if (context.length > 0) {
+                        new Notice(`Found ${context.length} relevant notes.`);
+                    }
+
+                    const candidates = await this.aiService.generateCandidates(content, undefined, context);
 
                     if (candidates.length === 0) {
                         new Notice("No candidates generated.");
