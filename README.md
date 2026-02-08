@@ -19,6 +19,9 @@ ZettelForge helps you transform your literature notes into high-quality atomic n
     -   Anthropic Claude
     -   OpenRouter
 -   **Customizable Templates**: generated notes include metadata like confidence score, source links, and tags.
+-   **Smart Deduplication**:
+    -   **Hard Check**: Prevents creation of notes with existing titles or aliases.
+    -   **Soft Check**: Warns about semantically similar content using Jaccard similarity during review.
 
 ## Installation
 

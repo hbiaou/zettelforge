@@ -1,16 +1,19 @@
 import { App, Modal, TFile, Setting, ButtonComponent, Notice, TextComponent, TextAreaComponent } from "obsidian";
 import { NoteOps } from "../notes/note-ops";
 import { getFrontmatter, updateFrontmatter } from "../utils/frontmatter";
+import { DedupService } from "../services/dedup";
 
 export class ReviewModal extends Modal {
     files: TFile[];
     currentIndex: number;
     noteOps: NoteOps;
+    dedupService: DedupService;
 
-    constructor(app: App, files: TFile[], noteOps: NoteOps) {
+    constructor(app: App, files: TFile[], noteOps: NoteOps, dedupService: DedupService) {
         super(app);
         this.files = files;
         this.noteOps = noteOps;
+        this.dedupService = dedupService;
         this.currentIndex = 0;
     }
 
@@ -39,9 +42,45 @@ export class ReviewModal extends Modal {
         const content = await this.app.vault.read(file);
         const frontmatter = getFrontmatter(this.app, file);
 
+        // --- DEDUPLICATION CHECKS ---
+        // 1. Hard Check (Exact/Alias Title)
+        const dupTitle = this.dedupService.isTitleDuplicate(file.basename);
+
+        // 2. Soft Check (Content Similarity)
+        // Extract atomic claim or body to check. 
+        // For simple candidates, content is usually small enough.
+        const dupContent = await this.dedupService.findSimilar(content);
+
+
         // Header
         contentEl.createEl("h2", { text: `Reviewing: ${file.basename}` });
         contentEl.createEl("small", { text: `Candidate ${this.currentIndex + 1} of ${this.files.length}` });
+
+        // --- WARNINGS DISPLAY ---
+        if (dupTitle.exists) {
+            const warnDiv = contentEl.createDiv({ cls: 'zettelforge-warning-box' });
+            warnDiv.style.backgroundColor = 'rgba(255, 0, 0, 0.2)';
+            warnDiv.style.border = '1px solid red';
+            warnDiv.style.padding = '10px';
+            warnDiv.style.marginBottom = '15px';
+            warnDiv.createEl('strong', { text: '⚠️ CRITICAL: Duplicate Title Detected' });
+            warnDiv.createEl('p', { text: `A note named "${dupTitle.originalName}" already exists. You MUST rename this note before finalizing.` });
+        }
+
+        if (dupContent.length > 0) {
+            const infoDiv = contentEl.createDiv({ cls: 'zettelforge-info-box' });
+            infoDiv.style.backgroundColor = 'rgba(255, 165, 0, 0.2)';
+            infoDiv.style.border = '1px solid orange';
+            infoDiv.style.padding = '10px';
+            infoDiv.style.marginBottom = '15px';
+            infoDiv.createEl('strong', { text: '⚠️ Potential Content Duplicates' });
+            const ul = infoDiv.createEl('ul');
+            dupContent.forEach(d => {
+                const link = d.file.basename;
+                ul.createEl('li', { text: `${link} (Similarity: ${(d.score * 100).toFixed(0)}%) - ${d.reason}` });
+            });
+        }
+
 
         // Metadata Preview (Read-Onlyish for now)
         const metadataDiv = contentEl.createDiv({ cls: "zettelforge-metadata" });
@@ -117,10 +156,13 @@ export class ReviewModal extends Modal {
                 if (newTitle !== file.basename) {
                     const newPath = file.parent ? `${file.parent.path}/${newTitle}.md` : `${newTitle}.md`;
                     try {
-                        await this.app.fileManager.renameFile(file, newPath);
+                        const renamed = await this.app.fileManager.renameFile(file, newPath);
                     } catch (err) {
                         new Notice(`Failed to rename to "${newTitle}". Only content saved.`);
                         console.error(err);
+                        // If rename fails (likely collision), we shouldn't finalize yet?
+                        // Or we force them to fix it.
+                        return; // Stop here if rename fails
                     }
                 }
 

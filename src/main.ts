@@ -4,6 +4,7 @@ import { ZettelForgeSettingTab } from "./settings/tab";
 import { NoteOps } from "./notes/note-ops";
 import { AIService } from "./services/ai";
 import { ContextService } from "./services/context";
+import { DedupService } from "./services/dedup";
 import { ReviewModal } from "./ui/review-modal";
 
 export default class ZettelForgePlugin extends Plugin {
@@ -11,6 +12,7 @@ export default class ZettelForgePlugin extends Plugin {
     noteOps: NoteOps;
     aiService: AIService;
     contextService: ContextService;
+    dedupService: DedupService;
 
     async onload() {
         await this.loadSettings();
@@ -19,6 +21,12 @@ export default class ZettelForgePlugin extends Plugin {
         this.noteOps = new NoteOps(this.app, this.settings);
         this.contextService = new ContextService(this.app);
         this.aiService = new AIService(this.settings);
+        this.dedupService = new DedupService(this.app, this.settings);
+
+        // Build deduplication index
+        this.app.workspace.onLayoutReady(() => {
+            this.dedupService.buildIndex();
+        });
 
         this.addSettingTab(new ZettelForgeSettingTab(this.app, this));
 
@@ -131,7 +139,8 @@ export default class ZettelForgePlugin extends Plugin {
             return;
         }
 
-        new ReviewModal(this.app, files, this.noteOps).open();
+        // Pass dedupService to review modal
+        new ReviewModal(this.app, files, this.noteOps, this.dedupService).open();
     }
 
     async onunload() {
