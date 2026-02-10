@@ -90,6 +90,10 @@ ZettelForge sends the content of your currently active note to the selected AI p
 3.  Run `npm run dev` to start the watcher.
 4.  Copy the built files to your test vault or symlink the folder.
 
+## Author
+
+BIAOU Samadori S. Honoré
+
 ## License
 
 Distributed under the MIT License. See `LICENSE` for more information.
