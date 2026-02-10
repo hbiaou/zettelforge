@@ -35,6 +35,10 @@ Install both to optimize your workflow from "reading" to "synthesizing".
 
 ## Installation
 
+### From Community Plugins (Coming Soon)
+
+This plugin has not yet been submitted to the community plugins list. We will submit it once it has matured enough. In the meantime, please use BRAT, manual installation, or install from a release.
+
 ### Manual Installation
 
 1.  Download the latest release from the [Releases](https://github.com/hbiaou/zettelforge/releases) page.
