@@ -4,6 +4,8 @@
 
 ZettelForge helps you transform your literature notes into high-quality atomic notes (Zettels) using AI. Designed for **academic workflows** and the **Zettelkasten methodology**, it automates the creation of **atomic notes** from your **Obsidian** vault. It processes your source notes, generates candidate atomic notes, and provides a streamlined inbox workflow for reviewing, editing, and finalizing them.
 
+> **Note:** This project was primarily built to solve my own personal friction with the time it takes to create atomic notes. However, you are welcome to use it if you find it helpful and adapt it to your own workflow!
+
 ## Features
 
 -   **AI-Powered Generation**: Instantly generate multiple atomic note candidates from a single source note.
@@ -20,8 +22,16 @@ ZettelForge helps you transform your literature notes into high-quality atomic n
     -   OpenRouter
 -   **Customizable Templates**: generated notes include metadata like confidence score, source links, and tags.
 -   **Smart Deduplication**:
-    -   **Hard Check**: Prevents creation of notes with existing titles or aliases (scoped to Atomic Notes folder).
     -   **Soft Check**: Warns about semantically similar content using Jaccard similarity (scoped to Atomic Notes folder).
+
+## Recommended Workflow
+
+For a complete knowledge management pipeline, tailored for academic and research workflows, it is recommended to use **ZettelForge** alongside its sister project: **[Zotero Triage](https://github.com/hbiaou/zotero-triage)**.
+
+1.  **[Zotero Triage](https://github.com/hbiaou/zotero-triage)**: Handles the creation of high-quality **literature notes** from your Zotero library, ensuring you capture the best source material.
+2.  **ZettelForge**: Takes those literature notes and uses AI to distill them into **atomic notes**, ready for your permanent Zettelkasten.
+
+Install both to optimize your workflow from "reading" to "synthesizing".
 
 ## Installation
 
